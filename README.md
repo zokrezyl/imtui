@@ -1,3 +1,5 @@
+Experimental port of imtui to notcurses
+
 imtui
 =====
 [![Actions Status](https://github.com/ggerganov/imtui/workflows/CI/badge.svg)](https://github.com/ggerganov/imtui/actions)
