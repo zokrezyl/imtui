@@ -28,17 +28,18 @@ endif()
 # ncurses
 
 if (IMTUI_SUPPORT_NCURSES)
-    add_library(imtui-ncurses ${IMTUI_LIBRARY_TYPE}
-        imtui-impl-ncurses.cpp
+    add_library(imtui-xcurses ${IMTUI_LIBRARY_TYPE}
+        imtui-impl-xcurses.cpp
+        ncurses.c
         )
 
-    target_include_directories(imtui-ncurses PRIVATE
+    target_include_directories(imtui-xcurses PRIVATE
         ${CURSES_INCLUDE_DIR}
         )
 
-    set_target_properties(imtui-ncurses PROPERTIES PUBLIC_HEADER "../include/imtui/imtui-impl-ncurses.h")
+    set_target_properties(imtui-xcurses PROPERTIES PUBLIC_HEADER "../include/imtui/imtui-impl-xcurses.h")
 
-    target_link_libraries(imtui-ncurses PUBLIC
+    target_link_libraries(imtui-xcurses PUBLIC
         imtui
         ${CURSES_LIBRARIES}
         )
@@ -66,8 +67,8 @@ if (IMTUI_STANDALONE AND NOT EMSCRIPTEN)
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         )
 
-    install(TARGETS imtui-ncurses
-        EXPORT imtui-ncurses
+    install(TARGETS imtui-xcurses
+        EXPORT imtui-xcurses
         PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/imtui
         INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/imtui
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}

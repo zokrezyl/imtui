@@ -30,7 +30,7 @@ else()
     add_executable(${TARGET}
         main.cpp
         hn-state.cpp
-        impl-ncurses.cpp
+        impl-xcurses.cpp
         )
 
     target_include_directories(${TARGET} PRIVATE
@@ -39,7 +39,7 @@ else()
         )
 
     target_link_libraries(${TARGET} PRIVATE
-        imtui-ncurses
+        imtui-xcurses
         imtui-examples-common
         ${CURL_LIBRARIES}
         )

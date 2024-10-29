@@ -34,7 +34,7 @@ else()
         )
 
     target_link_libraries(${TARGET} PRIVATE
-        imtui-ncurses
+        imtui-xcurses
         imtui-examples-common
         )
 endif()

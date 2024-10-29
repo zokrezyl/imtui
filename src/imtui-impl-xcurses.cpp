@@ -39,7 +39,7 @@ struct VSync {
 
     while (tNow_us < tNextCur_us - 100) {
       if (tNow_us + 0.5 * tStepActive_us < tNextCur_us) {
-        int ch = xcurses_getch();
+        int ch = xcurses_wgetch(xcurses_stdscr());
 
         if (ch != XCURSES_ERR) {
           xcurses_ungetch(ch); // This will need to be implemented in xcurses
@@ -91,7 +91,9 @@ ImTui::TScreen *ImTui_ImplXcurses_Init(bool mouseSupport, float fps_active,
   g_vsync = VSync(fps_active, fps_idle);
 
   if (mouseSupport) {
-    // Implement mouse support in xcurses if needed
+    mouseinterval(0);
+    mousemask(ALL_MOUSE_EVENTS | REPORT_MOUSE_POSITION, NULL);
+    printf("\033[?1003h\n");
   }
 
   ImGui::GetIO().KeyMap[ImGuiKey_Tab] = 9;
@@ -145,7 +147,7 @@ bool ImTui_ImplXcurses_NewFrame() {
   int screenSizeX = 0;
   int screenSizeY = 0;
 
-  xcurses_getmaxyx((XWindow *)stdscr, screenSizeY, screenSizeX);
+  xcurses_getmaxyx((XWindow *)xcurses_stdscr(), screenSizeY, screenSizeX);
   ImGui::GetIO().DisplaySize = ImVec2(screenSizeX, screenSizeY);
 
   static int mx = 0;
@@ -164,7 +166,7 @@ bool ImTui_ImplXcurses_NewFrame() {
   ImGui::GetIO().KeyShift = false;
 
   while (true) {
-    int c = xcurses_getch();
+    int c = xcurses_wgetch(xcurses_stdscr());
 
     if (c == XCURSES_ERR) {
       if ((mstate & 0xf) == 0x1) {
@@ -172,8 +174,23 @@ bool ImTui_ImplXcurses_NewFrame() {
         rbut = 0;
       }
       break;
-    } else if (c == XCURSES_KEY_MOUSE) {
-      // Implement mouse handling in xcurses if needed
+    } else if (c == KEY_MOUSE) {
+      MEVENT event;
+      if (getmouse(&event) == OK) {
+        mx = event.x;
+        my = event.y;
+        mstate = event.bstate;
+        if ((mstate & 0x000f) == 0x0002)
+          lbut = 1;
+        if ((mstate & 0x000f) == 0x0001)
+          lbut = 0;
+        if ((mstate & 0xf000) == 0x2000)
+          rbut = 1;
+        if ((mstate & 0xf000) == 0x1000)
+          rbut = 0;
+        // printf("mstate = 0x%016lx\n", mstate);
+        ImGui::GetIO().KeyCtrl |= ((mstate & 0x0F000000) == 0x01000000);
+      }
     } else {
       input[0] = (c & 0x000000FF);
       input[1] = (c & 0x0000FF00) >> 8;
@@ -184,7 +201,26 @@ bool ImTui_ImplXcurses_NewFrame() {
       }
       if (c == 330) {
         ImGui::GetIO().KeysDown[ImGui::GetIO().KeyMap[ImGuiKey_Delete]] = true;
-      } else if (c == XCURSES_KEY_BACKSPACE || c == KEY_DC || c == 127) {
+      } else if (c == KEY_BACKSPACE || c == KEY_DC || c == 127) {
+        ImGui::GetIO().KeysDown[ImGui::GetIO().KeyMap[ImGuiKey_Backspace]] =
+            true;
+        // Shift + arrows (probably not portable :()
+      } else if (c == 393) {
+        ImGui::GetIO().KeysDown[ImGui::GetIO().KeyMap[ImGuiKey_LeftArrow]] =
+            true;
+        ImGui::GetIO().KeyShift = true;
+      } else if (c == 402) {
+        ImGui::GetIO().KeysDown[ImGui::GetIO().KeyMap[ImGuiKey_RightArrow]] =
+            true;
+        ImGui::GetIO().KeyShift = true;
+      } else if (c == 337) {
+        ImGui::GetIO().KeysDown[ImGui::GetIO().KeyMap[ImGuiKey_UpArrow]] = true;
+        ImGui::GetIO().KeyShift = true;
+      } else if (c == 336) {
+        ImGui::GetIO().KeysDown[ImGui::GetIO().KeyMap[ImGuiKey_DownArrow]] =
+            true;
+        ImGui::GetIO().KeyShift = true;
+      } else if (c == XCURSES_KEY_BACKSPACE) {
         ImGui::GetIO().KeysDown[ImGui::GetIO().KeyMap[ImGuiKey_Backspace]] =
             true;
       } else if (c == XCURSES_KEY_LEFT) {

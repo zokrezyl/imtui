@@ -71,6 +71,7 @@ int xcurses_end() {
   return end;
 }
 
+/*
 XWindow *xcurses_newwin(int nlines, int ncols, int begin_y, int begin_x) {
   return (XWindow *)newwin(nlines, ncols, begin_y, begin_x);
 }
@@ -91,6 +92,7 @@ int xcurses_mvwprintw(XWindow *win, int y, int x, const char *fmt, ...) {
 
 int xcurses_getch() { return getch(); }
 int xcurses_ungetch(int ch) { return ungetch(ch); }
+int xcurses_wgetch(XWindow *win) { return wgetch(win); }
 
 int xcurses_keypad(XWindow *win, int bf) { return keypad((WINDOW *)win, bf); }
 
@@ -108,3 +110,7 @@ int xcurses_getmaxyx(XWindow *win, int y, int x) {
   getmaxyx((WINDOW *)win, y, x);
   return OK;
 }
+
+int xcurses_addstr(const char *str) { return addstr(str); }
+
+*/
