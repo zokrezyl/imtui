@@ -1,31 +1,11 @@
-/*! \file imtui-impl-ncurses.cpp
+/*! \file imtui-impl-xcurses.cpp
  *  \brief Enter description here.
  */
 
-#include "imtui/imtui-impl-ncurses.h"
+#include "imtui/imtui-impl-xcurses.h"
 #include "imtui/imtui-impl-text.h"
 #include "imtui/imtui.h"
-
-#ifdef _WIN32
-#define NCURSES_MOUSE_VERSION
-#include <pdcurses.h>
-#define set_escdelay(X)
-
-#define KEY_OFFSET 0xec00
-
-#define KEY_CODE_YES (KEY_OFFSET + 0x00) /* If get_wch() gives a key code */
-
-#define KEY_BREAK (KEY_OFFSET + 0x01) /* Not on PC KBD */
-#define KEY_DOWN (KEY_OFFSET + 0x02)  /* Down arrow key */
-#define KEY_UP (KEY_OFFSET + 0x03)    /* Up arrow key */
-#define KEY_LEFT (KEY_OFFSET + 0x04)  /* Left arrow key */
-#define KEY_RIGHT (KEY_OFFSET + 0x05) /* Right arrow key */
-#define KEY_HOME (KEY_OFFSET + 0x06)  /* home key */
-#define KEY_BACKSPACE (8)             /* not on pc */
-#define KEY_F0 (KEY_OFFSET + 0x08)    /* function keys; 64 reserved */
-#else
-#include <ncurses.h>
-#endif
+#include "imtui/xcurses.h"
 
 #include <array>
 #include <chrono>
@@ -59,10 +39,10 @@ struct VSync {
 
     while (tNow_us < tNextCur_us - 100) {
       if (tNow_us + 0.5 * tStepActive_us < tNextCur_us) {
-        int ch = wgetch(stdscr);
+        int ch = xcurses_getch();
 
-        if (ch != ERR) {
-          ungetch(ch);
+        if (ch != XCURSES_ERR) {
+          xcurses_ungetch(ch); // This will need to be implemented in xcurses
           tNextCur_us = tNow_us;
 
           return;
@@ -92,8 +72,14 @@ struct VSync {
 static VSync g_vsync;
 static ImTui::TScreen *g_screen = nullptr;
 
-ImTui::TScreen *ImTui_ImplNcurses_Init(bool mouseSupport, float fps_active,
-                                       float fps_idle) {
+ImTui::TScreen *ImTui_ImplXcurses_Init(bool mouseSupport, float fps_active,
+                                       float fps_idle, XWindow *stdscr) {
+
+  if (stdscr == nullptr) {
+    fprintf(stderr, "stdscr is NULL, getting default \n");
+    stdscr = xcurses_stdscr();
+    fprintf(stderr, "stdscr successfully initialized \n");
+  }
   if (g_screen == nullptr) {
     g_screen = new ImTui::TScreen();
   }
@@ -104,21 +90,8 @@ ImTui::TScreen *ImTui_ImplNcurses_Init(bool mouseSupport, float fps_active,
   fps_idle = std::min(fps_active, fps_idle);
   g_vsync = VSync(fps_active, fps_idle);
 
-  initscr();
-  use_default_colors();
-  start_color();
-  cbreak();
-  noecho();
-  curs_set(0);
-  nodelay(stdscr, TRUE);
-  wtimeout(stdscr, 0);
-  set_escdelay(25);
-  keypad(stdscr, true);
-
   if (mouseSupport) {
-    mouseinterval(0);
-    mousemask(ALL_MOUSE_EVENTS | REPORT_MOUSE_POSITION, NULL);
-    printf("\033[?1003h\n");
+    // Implement mouse support in xcurses if needed
   }
 
   ImGui::GetIO().KeyMap[ImGuiKey_Tab] = 9;
@@ -150,17 +123,14 @@ ImTui::TScreen *ImTui_ImplNcurses_Init(bool mouseSupport, float fps_active,
   int screenSizeX = 0;
   int screenSizeY = 0;
 
-  getmaxyx(stdscr, screenSizeY, screenSizeX);
+  xcurses_getmaxyx((XWindow *)stdscr, screenSizeY, screenSizeX);
   ImGui::GetIO().DisplaySize = ImVec2(screenSizeX, screenSizeY);
 
   return g_screen;
 }
 
-void ImTui_ImplNcurses_Shutdown() {
-  // ref #11 : https://github.com/ggerganov/imtui/issues/11
-  printf("\033[?1003l\n"); // Disable mouse movement events, as l = low
-
-  endwin();
+void ImTui_ImplXcurses_Shutdown() {
+  xcurses_end();
 
   if (g_screen) {
     delete g_screen;
@@ -169,13 +139,13 @@ void ImTui_ImplNcurses_Shutdown() {
   g_screen = nullptr;
 }
 
-bool ImTui_ImplNcurses_NewFrame() {
+bool ImTui_ImplXcurses_NewFrame() {
   bool hasInput = false;
 
   int screenSizeX = 0;
   int screenSizeY = 0;
 
-  getmaxyx(stdscr, screenSizeY, screenSizeX);
+  xcurses_getmaxyx((XWindow *)stdscr, screenSizeY, screenSizeX);
   ImGui::GetIO().DisplaySize = ImVec2(screenSizeX, screenSizeY);
 
   static int mx = 0;
@@ -194,35 +164,19 @@ bool ImTui_ImplNcurses_NewFrame() {
   ImGui::GetIO().KeyShift = false;
 
   while (true) {
-    int c = wgetch(stdscr);
+    int c = xcurses_getch();
 
-    if (c == ERR) {
+    if (c == XCURSES_ERR) {
       if ((mstate & 0xf) == 0x1) {
         lbut = 0;
         rbut = 0;
       }
       break;
-    } else if (c == KEY_MOUSE) {
-      MEVENT event;
-      if (getmouse(&event) == OK) {
-        mx = event.x;
-        my = event.y;
-        mstate = event.bstate;
-        if ((mstate & 0x000f) == 0x0002)
-          lbut = 1;
-        if ((mstate & 0x000f) == 0x0001)
-          lbut = 0;
-        if ((mstate & 0xf000) == 0x2000)
-          rbut = 1;
-        if ((mstate & 0xf000) == 0x1000)
-          rbut = 0;
-        // printf("mstate = 0x%016lx\n", mstate);
-        ImGui::GetIO().KeyCtrl |= ((mstate & 0x0F000000) == 0x01000000);
-      }
+    } else if (c == XCURSES_KEY_MOUSE) {
+      // Implement mouse handling in xcurses if needed
     } else {
       input[0] = (c & 0x000000FF);
       input[1] = (c & 0x0000FF00) >> 8;
-      // printf("c = %d, c0 = %d, c1 = %d xxx\n", c, input[0], input[1]);
       if (c < 127) {
         if (c != ImGui::GetIO().KeyMap[ImGuiKey_Enter]) {
           ImGui::GetIO().AddInputCharactersUTF8(input);
@@ -230,37 +184,18 @@ bool ImTui_ImplNcurses_NewFrame() {
       }
       if (c == 330) {
         ImGui::GetIO().KeysDown[ImGui::GetIO().KeyMap[ImGuiKey_Delete]] = true;
-      } else if (c == KEY_BACKSPACE || c == KEY_DC || c == 127) {
+      } else if (c == XCURSES_KEY_BACKSPACE || c == KEY_DC || c == 127) {
         ImGui::GetIO().KeysDown[ImGui::GetIO().KeyMap[ImGuiKey_Backspace]] =
             true;
-        // Shift + arrows (probably not portable :()
-      } else if (c == 393) {
+      } else if (c == XCURSES_KEY_LEFT) {
         ImGui::GetIO().KeysDown[ImGui::GetIO().KeyMap[ImGuiKey_LeftArrow]] =
             true;
-        ImGui::GetIO().KeyShift = true;
-      } else if (c == 402) {
+      } else if (c == XCURSES_KEY_RIGHT) {
         ImGui::GetIO().KeysDown[ImGui::GetIO().KeyMap[ImGuiKey_RightArrow]] =
             true;
-        ImGui::GetIO().KeyShift = true;
-      } else if (c == 337) {
+      } else if (c == XCURSES_KEY_UP) {
         ImGui::GetIO().KeysDown[ImGui::GetIO().KeyMap[ImGuiKey_UpArrow]] = true;
-        ImGui::GetIO().KeyShift = true;
-      } else if (c == 336) {
-        ImGui::GetIO().KeysDown[ImGui::GetIO().KeyMap[ImGuiKey_DownArrow]] =
-            true;
-        ImGui::GetIO().KeyShift = true;
-      } else if (c == KEY_BACKSPACE) {
-        ImGui::GetIO().KeysDown[ImGui::GetIO().KeyMap[ImGuiKey_Backspace]] =
-            true;
-      } else if (c == KEY_LEFT) {
-        ImGui::GetIO().KeysDown[ImGui::GetIO().KeyMap[ImGuiKey_LeftArrow]] =
-            true;
-      } else if (c == KEY_RIGHT) {
-        ImGui::GetIO().KeysDown[ImGui::GetIO().KeyMap[ImGuiKey_RightArrow]] =
-            true;
-      } else if (c == KEY_UP) {
-        ImGui::GetIO().KeysDown[ImGui::GetIO().KeyMap[ImGuiKey_UpArrow]] = true;
-      } else if (c == KEY_DOWN) {
+      } else if (c == XCURSES_KEY_DOWN) {
         ImGui::GetIO().KeysDown[ImGui::GetIO().KeyMap[ImGuiKey_DownArrow]] =
             true;
       } else {
@@ -301,11 +236,11 @@ static ImTui::TScreen screenPrev;
 static std::vector<uint8_t> curs;
 static std::array<std::pair<bool, int>, 256 * 256> colPairs;
 
-void ImTui_ImplNcurses_DrawScreen(bool active) {
+void ImTui_ImplXcurses_DrawScreen(bool active) {
   if (active)
     nActiveFrames = 10;
 
-  wrefresh(stdscr);
+  xcurses_wrefresh(xcurses_stdscr());
 
   int nx = g_screen->nx;
   int ny = g_screen->ny;
@@ -342,7 +277,7 @@ void ImTui_ImplNcurses_DrawScreen(bool active) {
       const uint16_t p = b * 256 + f;
 
       if (colPairs[p].first == false) {
-        init_pair(nColPairs, f, b);
+        xcurses_init_pair(nColPairs, f, b);
         colPairs[p].first = true;
         colPairs[p].second = nColPairs;
         ++nColPairs;
@@ -351,11 +286,11 @@ void ImTui_ImplNcurses_DrawScreen(bool active) {
       if (lastp != (int)p) {
         if (curs.size() > 0) {
           curs[ic] = 0;
-          addstr((char *)curs.data());
+          xcurses_addstr((char *)curs.data());
           ic = 0;
           curs[0] = 0;
         }
-        attron(COLOR_PAIR(colPairs[p].second));
+        xcurses_attron(COLOR_PAIR(colPairs[p].second));
         lastp = p;
       }
 
@@ -383,4 +318,4 @@ void ImTui_ImplNcurses_DrawScreen(bool active) {
   g_vsync.wait(nActiveFrames-- > 0);
 }
 
-bool ImTui_ImplNcurses_ProcessEvent() { return true; }
+bool ImTui_ImplXcurses_ProcessEvent() { return true; }

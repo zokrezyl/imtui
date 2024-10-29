@@ -1,7 +1,12 @@
-#pragma once
-
 #ifndef XCURSES_H
 #define XCURSES_H
+
+#define USE_NCURSES
+#ifdef USE_NCURSES
+#include <ncurses.h>
+#else
+#include <notcurses/notcurses.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -9,8 +14,9 @@ extern "C" {
 
 typedef struct XWindow XWindow;
 
+XWindow *xcurses_stdscr();
 // Initialize the library
-int xcurses_init();
+// int xcurses_init();
 
 // End the library session
 int xcurses_end();
@@ -41,7 +47,6 @@ int xcurses_echo();
 int xcurses_noecho();
 
 // Initialize color pairs
-int xcurses_start_color();
 int xcurses_init_pair(short pair, short f, short b);
 
 // Set attributes
@@ -50,6 +55,20 @@ int xcurses_attroff(int attrs);
 
 // Set cursor visibility
 int xcurses_curs_set(int visibility);
+
+// Additional constants and functions
+#define XCURSES_ERR (-1)
+#define XCURSES_KEY_MOUSE KEY_MOUSE
+#define XCURSES_KEY_BACKSPACE KEY_BACKSPACE
+#define XCURSES_KEY_DC KEY_DC
+#define XCURSES_KEY_LEFT KEY_LEFT
+#define XCURSES_KEY_RIGHT KEY_RIGHT
+#define XCURSES_KEY_UP KEY_UP
+#define XCURSES_KEY_DOWN KEY_DOWN
+#define XCURSES_COLOR_PAIR COLOR_PAIR
+int xcurses_ungetch(int ch);
+int xcurses_getmaxyx(XWindow *win, int y, int x);
+int xcurses_color_pair(int pair);
 
 #ifdef __cplusplus
 }
